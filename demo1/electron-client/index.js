@@ -59,6 +59,8 @@ function createWindow() {
   });
   //"https://vue.ruoyi.vip/prod-api/monitor/operlog/list"
   win.webContents.debugger.on("message", (event, method, params) => {
+    //https://chromedevtools.github.io/devtools-protocol/tot/DOM
+
     if (method === "Network.responseReceived") {
       for (let rule of RULES) {
         if (params.response.url.indexOf(rule.source.urlPattern) > -1) {
@@ -82,6 +84,14 @@ function createWindow() {
             });
         }
       }
+    }
+
+    if (method === "Target.targetCreated") {
+      console.log("Target.targetCreated");
+    }
+
+    if (method === "DOM.documentUpdated") {
+      console.log("DOM.documentUpdated");
     }
 
     // if (method === "Network.webSocketFrameReceived") {
@@ -150,11 +160,34 @@ function createWindow() {
   //   win.loadURL(url);
   // });
 
-  win.loadURL("https://vue.ruoyi.vip/");
+  //win.loadURL("https://vue.ruoyi.vip/");
+  win.loadURL("https://pigx.pig4cloud.com");
   win.webContents.openDevTools();
+
+  //事件列表 https://www.electronjs.org/docs/api/web-contents#%E4%BA%8B%E4%BB%B6-responsive
+  win.webContents.on(
+    "did-navigate-in-page",
+    (event, url, isMainFrame, frameProcessId, frameRoutingId) => {
+      // console.log(event, url, isMainFrame, frameProcessId, frameRoutingId);
+      console.log("did-navigate-in-page");
+    }
+  );
+
+  win.webContents.on("before-input-event", (event) => {
+    console.log("before-input-event");
+  });
+
+  win.webContents.on("did-frame-navigate", (event) => {
+    console.log("did-frame-navigate");
+  });
+
+  
 }
 
 app.whenReady().then(() => {
+  createWindow();
+  return;
+  //TODO above is test code
   MongoClient.connect("mongodb://127.0.0.1:27020/electron-server").then(
     async (client) => {
       mongoClient = client;

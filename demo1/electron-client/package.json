@@ -1,0 +1,20 @@
+{
+  "name": "electron-client",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "fastify": "^3.10.1",
+    "mongoclient": "1.0.3",
+    "lodash": "^4.17.0"
+  },
+  "devDependencies": {
+    "electron": "^11.2.1"
+  }
+}

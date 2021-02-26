@@ -12,10 +12,10 @@ window.addEventListener("load", () => {
   //     replaceText(`${type}-version`, process.versions[type]);
   //   }
 
-  // const centent = fs.readFileSync(path.join(__dirname, "render.js"));
+  const centent = fs.readFileSync(path.join(__dirname, "render.js"));
 
-  // const x = document.getElementsByTagName("head");
-  // x[0].innerHTML =
-  //   `<script type="text/javascript">${centent}</script>` + x[0].innerHTML;
-  console.log(window.location);
+  const x = document.getElementsByTagName("head");
+  x[0].innerHTML =
+    `<script type="text/javascript">${centent}</script>` + x[0].innerHTML;
+  console.log("insert javascript success");
 });

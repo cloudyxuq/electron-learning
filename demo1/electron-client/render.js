@@ -8,9 +8,14 @@
 //   }
 // );
 console.log("111111111");
-console.log(document);
+document.body
+  .getElementsByClassName("avue-crud__left")[0]
+  .getElementsByTagName("button")[0]
+  .click();
+// console.log(document.getElementsByClassName("avue-crud__left"));
 const { ipcRenderer } = require("electron");
 console.log("222222222");
+/*
 const links = document.querySelectorAll("a[href]");
 // console.log("links", links);
 links.forEach((link) => {
@@ -21,3 +26,4 @@ links.forEach((link) => {
     ipcRenderer.send("open-url", url);
   });
 });
+*/

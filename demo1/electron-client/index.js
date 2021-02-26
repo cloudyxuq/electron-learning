@@ -2,11 +2,11 @@ const MongoClient = require("mongodb").MongoClient;
 const { app, BrowserWindow, ipcMain, session } = require("electron");
 const _ = require("lodash");
 let mongoClient = null;
-// const path = require("path");
-// const fs = require("fs");
+const path = require("path");
+const fs = require("fs");
 
 let RULES = [];
-// const centent = fs.readFileSync(path.join(__dirname, "render.js"));
+const centent = fs.readFileSync(path.join(__dirname, "render.js"));
 
 function dataHandler(funcDefinition, data, identifier) {
   let func = new Function("source", funcDefinition);
@@ -169,7 +169,11 @@ function createWindow() {
     "did-navigate-in-page",
     (event, url, isMainFrame, frameProcessId, frameRoutingId) => {
       // console.log(event, url, isMainFrame, frameProcessId, frameRoutingId);
-      console.log("did-navigate-in-page");
+      // console.log("did-navigate-in-page", url);
+      if (url === "https://pigx.pig4cloud.com/#/admin/user/index") {
+        console.log("send message to render ");
+        win.webContents.executeJavaScript(centent);
+      }
     }
   );
 
@@ -180,8 +184,6 @@ function createWindow() {
   win.webContents.on("did-frame-navigate", (event) => {
     console.log("did-frame-navigate");
   });
-
-  
 }
 
 app.whenReady().then(() => {

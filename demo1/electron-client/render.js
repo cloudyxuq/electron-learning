@@ -1,20 +1,35 @@
-// const MongoClient = require("mongodb").MongoClient;
-// MongoClient.connect("mongodb://127.0.0.1:27020/electron-server").then(
-//   async (client) => {
-//     const db = client.db("electron-server");
-//     const col = db.collection("rules");
-//     const rules = await col.find().toArray();
-//     console.log(rules);
-//   }
-// );
-console.log("111111111");
-document.body
-  .getElementsByClassName("avue-crud__left")[0]
-  .getElementsByTagName("button")[0]
-  .click();
-// console.log(document.getElementsByClassName("avue-crud__left"));
 const { ipcRenderer } = require("electron");
-console.log("222222222");
+const _ = require("lodash");
+
+const addButton = document.body
+  .getElementsByClassName("avue-crud__left")[0]
+  .getElementsByTagName("button")[0];
+
+addButton.click();
+
+setTimeout(() => {
+  const result = ipcRenderer.sendSync("filldata", "");
+  // console.log(result);
+  const inputs = document.getElementsByClassName("el-input__inner");
+  _.each(inputs, (e) => {
+    if (e.getAttribute("placeholder") === "请输入 用户名") {
+      console.log("username dom found");
+      e.focus();
+      e.setAttribute("value", "testusername");
+    }
+  });
+
+  const btns = document.getElementsByClassName(
+    "el-button el-button--primary el-button--small"
+  );
+  _.each(btns, (btn) => {
+    if (btn.innerText === "保 存") {
+      console.log(btn);
+      btn.click();
+    }
+  });
+}, 1000);
+
 /*
 const links = document.querySelectorAll("a[href]");
 // console.log("links", links);

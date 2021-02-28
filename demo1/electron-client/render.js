@@ -9,25 +9,12 @@ addButton.click();
 
 setTimeout(() => {
   const result = ipcRenderer.sendSync("filldata", "");
-  // console.log(result);
-  const inputs = document.getElementsByClassName("el-input__inner");
-  _.each(inputs, (e) => {
-    if (e.getAttribute("placeholder") === "请输入 用户名") {
-      console.log("username dom found");
-      e.focus();
-      e.setAttribute("value", "testusername");
-    }
-  });
+  const obj = JSON.parse(result);
+  console.log("obj", obj);
 
-  const btns = document.getElementsByClassName(
-    "el-button el-button--primary el-button--small"
-  );
-  _.each(btns, (btn) => {
-    if (btn.innerText === "保 存") {
-      console.log(btn);
-      btn.click();
-    }
-  });
+  const handler = new Function("data", obj.rule.destination.handler);
+  handler(obj.content);
+
 }, 1000);
 
 /*

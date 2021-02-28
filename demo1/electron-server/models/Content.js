@@ -10,6 +10,7 @@ var Content = new keystone.List("Content");
 Content.add({
 	identifier: { type: Types.Text },
 	source: { type: Types.Code, language: "json", height: 300 },
+	rule: { type: Types.Relationship, ref: "Rule" },
 	status: {
 		type: Types.Select,
 		options: [
@@ -28,5 +29,5 @@ Content.relationship({ ref: "Rule", path: "rule", refPath: "name" });
 /**
  * Registration
  */
-Content.defaultColumns = "identifier, status, source";
+Content.defaultColumns = "identifier, status, rule";
 Content.register();

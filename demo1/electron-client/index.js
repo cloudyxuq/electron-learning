@@ -49,16 +49,22 @@ function createWindow() {
   });
 
   //chrome开发者工具
-  //   win.webContents.openDevTools();
+  win.webContents.openDevTools();
 
   ipcMain.on("filldata", (event, arg) => {
     const db = mongoClient.db("electron-server");
     const col = db.collection("contents");
+    const ruleCol = db.collection("rules");
     col.findOne((err, doc) => {
       if (err) {
         console.error(err.message);
       }
-      event.returnValue = JSON.stringify(doc);
+      ruleCol.findOne({ _id: doc.rule }, (err, pdoc) => {
+        event.returnValue = JSON.stringify({
+          content: doc,
+          rule: pdoc,
+        });
+      });
     });
   });
 
@@ -146,7 +152,8 @@ function addSourceListener(win) {
                 await saveData(
                   rule.source.handler,
                   JSON.parse(res["body"]),
-                  rule.source.identifier
+                  rule.source.identifier,
+                  rule._id
                 );
                 //弹出采集成功的确认框
                 dialog.showMessageBox({
@@ -186,7 +193,7 @@ function addDestListener(win) {
 }
 
 //保存采集的数据，暂时只支持json
-async function saveData(funcDefinition, data, identifier) {
+async function saveData(funcDefinition, data, identifier, ruleId) {
   let func = new Function("source", funcDefinition);
   let arr = func(data);
   if (arr.length > 0) {
@@ -194,7 +201,13 @@ async function saveData(funcDefinition, data, identifier) {
     for (let e of arr) {
       await col.update(
         { identifier: e[identifier] },
-        { $set: { source: JSON.stringify(e, null, 4), status: "NEW" } },
+        {
+          $set: {
+            source: JSON.stringify(e, null, 4),
+            status: "NEW",
+            rule: ruleId,
+          },
+        },
         { upsert: true }
       );
     }

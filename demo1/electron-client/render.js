@@ -1,16 +1,23 @@
-// const MongoClient = require("mongodb").MongoClient;
-// MongoClient.connect("mongodb://127.0.0.1:27020/electron-server").then(
-//   async (client) => {
-//     const db = client.db("electron-server");
-//     const col = db.collection("rules");
-//     const rules = await col.find().toArray();
-//     console.log(rules);
-//   }
-// );
-console.log("111111111");
-console.log(document);
 const { ipcRenderer } = require("electron");
-console.log("222222222");
+const _ = require("lodash");
+
+const addButton = document.body
+  .getElementsByClassName("avue-crud__left")[0]
+  .getElementsByTagName("button")[0];
+
+addButton.click();
+
+setTimeout(() => {
+  const result = ipcRenderer.sendSync("filldata", "");
+  const obj = JSON.parse(result);
+  console.log("obj", obj);
+
+  const handler = new Function("data", obj.rule.destination.handler);
+  handler(obj.content);
+
+}, 1000);
+
+/*
 const links = document.querySelectorAll("a[href]");
 // console.log("links", links);
 links.forEach((link) => {
@@ -21,3 +28,4 @@ links.forEach((link) => {
     ipcRenderer.send("open-url", url);
   });
 });
+*/

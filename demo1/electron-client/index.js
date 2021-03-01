@@ -1,53 +1,124 @@
-const MongoClient = require("mongodb").MongoClient;
-const { app, BrowserWindow, ipcMain, session } = require("electron");
+const path = require("path");
+const fs = require("fs");
 const _ = require("lodash");
+const { app, BrowserWindow, Menu, dialog, ipcMain } = require("electron");
+const MongoClient = require("mongodb").MongoClient;
+const config = require("./config");
 let mongoClient = null;
-// const path = require("path");
-// const fs = require("fs");
 
 let RULES = [];
-// const centent = fs.readFileSync(path.join(__dirname, "render.js"));
+const centent = fs.readFileSync(path.join(__dirname, "render.js"));
 
-function dataHandler(funcDefinition, data, identifier) {
-  let func = new Function("source", funcDefinition);
-  let arr = func(data);
-  if (arr.length > 0) {
-    const col = mongoClient.db("electron-server").collection("contents");
-    for (let e of arr) {
-      col.update(
-        { identifier: e[identifier] },
-        { $set: { source: JSON.stringify(e, null, 4), status: "NEW" } },
-        { upsert: true }
-      );
-    }
+let win = null;
+
+app.on("ready", () => {
+  createWindow();
+  initDB();
+});
+
+// Quit when all windows are closed.
+app.on("window-all-closed", () => {
+  // On OS X it is common for applications and their menu bar
+  // to stay active until the user quits explicitly with Cmd + Q
+  if (process.platform !== "darwin") {
+    app.quit();
   }
-  // console.log(arr);
-}
+});
+
+app.on("activate", () => {
+  // On OS X it's common to re-create a window in the app when the
+  // dock icon is clicked and there are no other windows open.
+  if (win === null) {
+    createWindow();
+  }
+});
 
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 1024,
-    height: 768,
+  win = new BrowserWindow({
     webPreferences: {
       nodeIntegration: true,
-      // preload: path.join(__dirname, "preload.js"),
     },
+    width: 1200,
+    height: 800,
+    minHeight: 340,
+    minWidth: 680,
   });
 
-  //require('electron').ipcRenderer.send('gpu', document.body.innerHTML);
-
-  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-    // console.log("details", details);
-    // for (let rule of RULES) {
-    //   if (details.url.indexOf(rule.source.urlPattern) > -1) {
-    //     win.webContents.executeJavaScript(centent);
-    //     console.log(details, rule, win.webContents);
-    //   }
-    // }
-
-    callback({ cancel: false });
+  win.on("closed", () => {
+    win = null;
   });
 
+  //chrome开发者工具
+  win.webContents.openDevTools();
+
+  ipcMain.on("filldata", (event, arg) => {
+    const db = mongoClient.db("electron-server");
+    const col = db.collection("contents");
+    const ruleCol = db.collection("rules");
+    col.findOne((err, doc) => {
+      if (err) {
+        console.error(err.message);
+      }
+      ruleCol.findOne({ _id: doc.rule }, (err, pdoc) => {
+        event.returnValue = JSON.stringify({
+          content: doc,
+          rule: pdoc,
+        });
+      });
+    });
+  });
+
+  addSourceListener(win);
+
+  addDestListener(win);
+
+  const template = [
+    {
+      label: "应用",
+      submenu: [
+        {
+          label: "这是一个demo",
+          click: function () {
+            dialog.showMessageBox({
+              type: "info",
+              message: "这是一个demo程序，仅用于演示",
+            });
+          },
+        },
+        { type: "separator" },
+        {
+          label: "退出",
+          click: function () {
+            app.quit();
+          },
+        },
+      ],
+    },
+    {
+      label: "操作",
+      submenu: [
+        {
+          label: "源网站",
+          click: function () {
+            win.loadURL(config.sourceUrl);
+          },
+        },
+        { type: "separator" },
+        {
+          label: "目标网站",
+          click: function () {
+            win.loadURL(config.destUrl);
+          },
+        },
+        { type: "separator" },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function addSourceListener(win) {
   try {
     win.webContents.debugger.attach("1.3");
   } catch (err) {
@@ -57,13 +128,13 @@ function createWindow() {
   win.webContents.debugger.on("detach", (event, reason) => {
     console.log("Debugger detached due to : ", reason);
   });
-  //"https://vue.ruoyi.vip/prod-api/monitor/operlog/list"
+  // https://vue.ruoyi.vip/prod-api/monitor/operlog/list
+  // https://chromedevtools.github.io/devtools-protocol/tot/DOM
   win.webContents.debugger.on("message", (event, method, params) => {
-    //https://chromedevtools.github.io/devtools-protocol/tot/DOM
-
     if (method === "Network.responseReceived") {
       for (let rule of RULES) {
         if (params.response.url.indexOf(rule.source.urlPattern) > -1) {
+          //匹配采集规则成功
           console.log(
             `Event: responseReceived requestId=${params.requestId} url=${
               params.response.url
@@ -74,12 +145,21 @@ function createWindow() {
             .sendCommand("Network.getResponseBody", {
               requestId: params.requestId,
             })
-            .then((res) => {
+            .then(async (res) => {
               if (
                 params.response.headers["Content-Type"] === "application/json"
               ) {
-                let obj = JSON.parse(res["body"]);
-                dataHandler(rule.source.handler, obj, rule.source.identifier);
+                await saveData(
+                  rule.source.handler,
+                  JSON.parse(res["body"]),
+                  rule.source.identifier,
+                  rule._id
+                );
+                //弹出采集成功的确认框
+                dialog.showMessageBox({
+                  type: "info",
+                  message: `恭喜！数据采集成功`,
+                });
               }
             });
         }
@@ -93,127 +173,68 @@ function createWindow() {
     if (method === "DOM.documentUpdated") {
       console.log("DOM.documentUpdated");
     }
-
-    // if (method === "Network.webSocketFrameReceived") {
-    //   console.log(params.response);
-    // }
-    // if (method === "Network.requestWillBeSent") {
-    //   if (params.request.url === "https://www.github.com") {
-    //     win.webContents.debugger.detach();
-    //   }
-    // }
   });
 
   win.webContents.debugger.sendCommand("Network.enable");
+}
 
-  // win.webContents.debugger.on("message", (event, method, params) => {
-  //   console.log(event, method, params);
-  //   if (method === "Network.responseReceived") {
-  //     // if (params.response.url.indexOf("xxxxx") > 0) {
-  //     console.log(
-  //       "Event: responseReceived " +
-  //         params.requestId +
-  //         "-" +
-  //         params.response.url
-  //     );
-  //     win.webContents.debugger.sendCommand(
-  //       "Network.getResponseBody",
-  //       { requestId: params.requestId },
-  //       (error, result) => {
-  //         if (!error || JSON.stringify(error) == "{}") {
-  //           console.log(`getResponseBody result: ${JSON.stringify(result)}`);
-  //         } else {
-  //           console.log(`getResponseBody error: ${JSON.stringify(error)}`);
-  //         }
-  //       }
-  //     );
-  //     // }
-  //   }
-
-  //   if (method === "Network.webSocketFrameReceived") {
-  //     console.log(params.response);
-  //   }
-  // });
-
-  // win.webContents.on("dom-ready", (a, b) => {
-  // console.log(win.webContents._getURL());
-  // const centent = fs.readFileSync(path.join(__dirname, "render.js"));
-  // win.webContents.executeJavaScript(centent);
-  // win.webContents.executeJavaScript(`
-  //   const target  = document.querySelector(".head-news-title");
-  //   const attrs = target.attributes;
-  //   const map = {}
-  //   for(const attr of attrs){
-  //     map[attr.name] = attr.value;
-  //   }
-  //   require('electron').ipcRenderer.send('gpu', JSON.stringify(map));
-  //   target.style.color = "red";
-  // `);
-  // });
-
-  // ipcMain.on("gpu", (_, gpu) => {
-  //   console.log("gpu", gpu);
-  // });
-
-  // ipcMain.on("open-url", (_, url) => {
-  //   console.log("url", url);
-  //   win.loadURL(url);
-  // });
-
-  //win.loadURL("https://vue.ruoyi.vip/");
-  win.loadURL("https://pigx.pig4cloud.com");
-  win.webContents.openDevTools();
-
-  //事件列表 https://www.electronjs.org/docs/api/web-contents#%E4%BA%8B%E4%BB%B6-responsive
+function addDestListener(win) {
   win.webContents.on(
     "did-navigate-in-page",
     (event, url, isMainFrame, frameProcessId, frameRoutingId) => {
-      // console.log(event, url, isMainFrame, frameProcessId, frameRoutingId);
-      console.log("did-navigate-in-page");
+      //url example: "https://pigx.pig4cloud.com/#/admin/user/index"
+      const arr = _.filter(RULES, { destination: { urlPattern: url } });
+      _.each(arr, () => {
+        console.log("send message to render ");
+        win.webContents.executeJavaScript(centent);
+      });
     }
   );
-
-  win.webContents.on("before-input-event", (event) => {
-    console.log("before-input-event");
-  });
-
-  win.webContents.on("did-frame-navigate", (event) => {
-    console.log("did-frame-navigate");
-  });
-
-  
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  return;
-  //TODO above is test code
-  MongoClient.connect("mongodb://127.0.0.1:27020/electron-server").then(
-    async (client) => {
-      mongoClient = client;
-      //load config from db
-      try {
-        const db = client.db("electron-server");
-        const col = db.collection("rules");
-        const rules = await col.find().toArray();
-        RULES = _.cloneDeep(rules);
-        console.log(`load rule size : ${RULES.length}`);
-      } catch (e) {
-        console.error(e.message);
-      }
-      createWindow();
+//保存采集的数据，暂时只支持json
+async function saveData(funcDefinition, data, identifier, ruleId) {
+  let func = new Function("source", funcDefinition);
+  let arr = func(data);
+  if (arr.length > 0) {
+    const col = mongoClient.db("electron-server").collection("contents");
+    for (let e of arr) {
+      await col.update(
+        { identifier: e[identifier] },
+        {
+          $set: {
+            source: JSON.stringify(e, null, 4),
+            status: "NEW",
+            rule: ruleId,
+          },
+        },
+        { upsert: true }
+      );
     }
-  );
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
   }
-});
+}
 
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
+function initDB() {
+  MongoClient.connect(config.mongoUrl)
+    .then((client) => {
+      mongoClient = client;
+      loadRulesFromDB();
+    })
+    .catch(() => {
+      dialog.showMessageBox({
+        type: "error",
+        message: "数据库连接失败，后续操作将无法进行，请检查",
+      });
+    });
+}
+
+async function loadRulesFromDB() {
+  const db = mongoClient.db("electron-server");
+  const col = db.collection("rules");
+  const rules = await col.find().toArray();
+  RULES = _.cloneDeep(rules);
+  dialog.showMessageBox({
+    type: "info",
+    message: `成功加载${RULES.length}条规则`,
+  });
+}
